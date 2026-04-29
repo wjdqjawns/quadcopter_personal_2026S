@@ -85,6 +85,7 @@ private:
     
     // History tracking for plots
     PlotHistory history_;
+    mjvFigure   figure_{};
 
     // Singleton pointer used by static GLFW callbacks.
     static Visualizer* instance_;
@@ -95,11 +96,7 @@ private:
     static void cursorCb(GLFWwindow*, double xpos, double ypos);
     
     // Rendering helpers
-    void renderTextOverlays(const SimDisplay& d, int W, int H);
-    void drawSimplePlot(int x, int y, int w, int h, 
-                       const std::deque<float>& data, 
-                       float min_val, float max_val, const char* label);
+    void renderTextOverlays(const SimDisplay& d, int W, int H, int y_offset);
+    void updateFigure(const SimDisplay& d);
 };
-
 } // namespace sim
-

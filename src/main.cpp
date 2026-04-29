@@ -1,8 +1,10 @@
 #include "drone/controller/pid.hpp"
+#include "drone/controller/mpc.hpp"
 #include "drone/estimator/ekf.hpp"
 #include "drone/estimator/cf.hpp"
 #include "drone/trajectory.hpp"
 #include "drone/imu.hpp"
+
 #include "mujoco_env.hpp"
 #include "sensor_bridge.hpp"
 #include "visualizer.hpp"

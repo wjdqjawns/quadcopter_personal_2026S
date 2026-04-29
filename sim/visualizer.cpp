@@ -5,240 +5,307 @@
 #include <cmath>
 #include <iostream>
 
-namespace sim {
+namespace sim
+{
+    Visualizer* Visualizer::instance_ = nullptr;
 
-Visualizer* Visualizer::instance_ = nullptr;
+    Visualizer::Visualizer(MujocoEnv& env, int width, int height) : env_(env)
+    {
+        instance_ = this;
 
-Visualizer::Visualizer(MujocoEnv& env, int width, int height) : env_(env) {
-    instance_ = this;
+        if (!glfwInit())
+            throw std::runtime_error("glfwInit failed");
 
-    if (!glfwInit())
-        throw std::runtime_error("glfwInit failed");
+        glfwWindowHint(GLFW_SAMPLES, 4);
+        window_ = glfwCreateWindow(width, height, "Drone Sim — Skydio X2", nullptr, nullptr);
+        if (!window_) { glfwTerminate(); throw std::runtime_error("glfwCreateWindow failed"); }
 
-    glfwWindowHint(GLFW_SAMPLES, 4);
-    window_ = glfwCreateWindow(width, height, "Drone Sim — Skydio X2", nullptr, nullptr);
-    if (!window_) { glfwTerminate(); throw std::runtime_error("glfwCreateWindow failed"); }
+        glfwMakeContextCurrent(window_);
+        glfwSwapInterval(1);
 
-    glfwMakeContextCurrent(window_);
-    glfwSwapInterval(1);
+        glfwSetKeyCallback(window_,         keyCb);
+        glfwSetScrollCallback(window_,      scrollCb);
+        glfwSetMouseButtonCallback(window_, mouseBtnCb);
+        glfwSetCursorPosCallback(window_,   cursorCb);
 
-    glfwSetKeyCallback(window_,         keyCb);
-    glfwSetScrollCallback(window_,      scrollCb);
-    glfwSetMouseButtonCallback(window_, mouseBtnCb);
-    glfwSetCursorPosCallback(window_,   cursorCb);
+        mjv_defaultCamera(&cam_);
+        mjv_defaultOption(&opt_);
+        mjv_defaultScene(&scn_);
+        mjr_defaultContext(&con_);
+        mjv_defaultFigure(&figure_);
 
-    mjv_defaultCamera(&cam_);
-    mjv_defaultOption(&opt_);
-    mjv_defaultScene(&scn_);
-    mjr_defaultContext(&con_);
+        mjv_makeScene(env_.model(), &scn_, 2000);
+        mjr_makeContext(env_.model(), &con_, mjFONTSCALE_150);
 
-    mjv_makeScene(env_.model(), &scn_, 2000);
-    mjr_makeContext(env_.model(), &con_, mjFONTSCALE_150);
+        figure_.flg_legend = 1;
+        figure_.flg_ticklabel[0] = 1;
+        figure_.flg_ticklabel[1] = 1;
+        figure_.flg_extend = 1;
+        figure_.linewidth = 2.0f;
+        figure_.gridwidth = 1.0f;
+        figure_.gridsize[0] = 5;
+        figure_.gridsize[1] = 5;
+        std::snprintf(figure_.title, sizeof(figure_.title), "Position vs Time");
+        std::snprintf(figure_.xlabel, sizeof(figure_.xlabel), "time (s)");
+        std::snprintf(figure_.xformat, sizeof(figure_.xformat), "%.1f");
+        std::snprintf(figure_.yformat, sizeof(figure_.yformat), "%.2f");
+        std::snprintf(figure_.linename[0], sizeof(figure_.linename[0]), "x");
+        std::snprintf(figure_.linename[1], sizeof(figure_.linename[1]), "y");
+        std::snprintf(figure_.linename[2], sizeof(figure_.linename[2]), "z");
+        figure_.linergb[0][0] = 0.92f; figure_.linergb[0][1] = 0.35f; figure_.linergb[0][2] = 0.35f;
+        figure_.linergb[1][0] = 0.35f; figure_.linergb[1][1] = 0.80f; figure_.linergb[1][2] = 0.45f;
+        figure_.linergb[2][0] = 0.35f; figure_.linergb[2][1] = 0.55f; figure_.linergb[2][2] = 0.95f;
 
-    // Track the drone body automatically.
-    int body_id = mj_name2id(env_.model(), mjOBJ_BODY, "x2");
-    cam_.type       = mjCAMERA_TRACKING;
-    cam_.trackbodyid = body_id;
-    cam_.distance   = 2.0;
-    cam_.elevation  = -20.0;
-    cam_.azimuth    = 45.0;
-}
-
-Visualizer::~Visualizer() {
-    mjv_freeScene(&scn_);
-    mjr_freeContext(&con_);
-    if (window_) glfwDestroyWindow(window_);
-    glfwTerminate();
-    instance_ = nullptr;
-}
-
-bool Visualizer::shouldClose() const {
-    return glfwWindowShouldClose(window_);
-}
-
-void Visualizer::renderTextOverlays(const SimDisplay& d, int W, int H) {
-    mjrRect vp{0, 0, W, H};
-    
-    constexpr double R2D = 180.0 / M_PI;
-    drone::Vec3 eul = drone::quatToEuler(d.ground_truth.quat);
-    drone::Vec3 err = d.target_pos - d.ground_truth.pos;
-
-    // Top-left: ground-truth pose ─────────────────────────────────────────────
-    char tl_title[512], tl_val[512];
-    
-    // Calculate min/max from history for ground truth position
-    float pos_x_min = 999, pos_x_max = -999;
-    float pos_z_min = 999, pos_z_max = -999;
-    for (float v : history_.pos_x) { pos_x_min = std::min(pos_x_min, v); pos_x_max = std::max(pos_x_max, v); }
-    for (float v : history_.pos_z) { pos_z_min = std::min(pos_z_min, v); pos_z_max = std::max(pos_z_max, v); }
-    
-    std::snprintf(tl_title, sizeof(tl_title),
-        "Time (s)\n"
-        "\n"
-        "Pos X (m)\n"
-        "Pos Y (m)\n"
-        "Pos Z (m)\n"
-        "\n"
-        "Vel X (m/s)\n"
-        "Vel Y (m/s)\n"
-        "Vel Z (m/s)\n"
-        "\n"
-        "Roll  (deg)\n"
-        "Pitch (deg)\n"
-        "Yaw   (deg)");
-    std::snprintf(tl_val, sizeof(tl_val),
-        "%.2f\n"
-        "\n"
-        "%+8.4f [%+.2f]\n" "%+8.4f\n" "%+8.4f [%+.2f]\n"
-        "\n"
-        "%+8.4f\n" "%+8.4f\n" "%+8.4f\n"
-        "\n"
-        "%+8.3f\n" "%+8.3f\n" "%+8.3f",
-        d.time,
-        d.ground_truth.pos.x(), pos_x_min, d.ground_truth.pos.y(), 
-        d.ground_truth.pos.z(), pos_z_min,
-        d.ground_truth.vel.x(), d.ground_truth.vel.y(), d.ground_truth.vel.z(),
-        eul.x()*R2D, eul.y()*R2D, eul.z()*R2D);
-    mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, vp, tl_title, tl_val, &con_);
-
-    // Bottom-left: target + tracking error ────────────────────────────────────
-    char bl_title[256], bl_val[256];
-    std::snprintf(bl_title, sizeof(bl_title),
-        "Target X (m)\n"
-        "Target Y (m)\n"
-        "Target Z (m)\n"
-        "\n"
-        "Err X (m)\n"
-        "Err Y (m)\n"
-        "Err Z (m)");
-    std::snprintf(bl_val, sizeof(bl_val),
-        "%+8.4f\n" "%+8.4f\n" "%+8.4f\n"
-        "\n"
-        "%+8.4f\n" "%+8.4f\n" "%+8.4f",
-        d.target_pos.x(), d.target_pos.y(), d.target_pos.z(),
-        err.x(), err.y(), err.z());
-    mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, vp, bl_title, bl_val, &con_);
-
-    // Top-right: EKF estimate ─────────────────────────────────────────────────
-    char tr_title[256], tr_val[256];
-    drone::Vec3 eul_est = drone::quatToEuler(d.estimated.quat);
-    std::snprintf(tr_title, sizeof(tr_title),
-        "EKF Pos X (m)\n"
-        "EKF Pos Y (m)\n"
-        "EKF Pos Z (m)\n"
-        "\n"
-        "EKF Vel X\n"
-        "EKF Vel Y\n"
-        "EKF Vel Z\n"
-        "\n"
-        "CF Roll  (deg)\n"
-        "CF Pitch (deg)\n"
-        "CF Yaw   (deg)");
-    std::snprintf(tr_val, sizeof(tr_val),
-        "%+8.4f\n" "%+8.4f\n" "%+8.4f\n"
-        "\n"
-        "%+8.4f\n" "%+8.4f\n" "%+8.4f\n"
-        "\n"
-        "%+8.3f\n" "%+8.3f\n" "%+8.3f",
-        d.estimated.pos.x(), d.estimated.pos.y(), d.estimated.pos.z(),
-        d.estimated.vel.x(), d.estimated.vel.y(), d.estimated.vel.z(),
-        eul_est.x()*R2D, eul_est.y()*R2D, eul_est.z()*R2D);
-    mjr_overlay(mjFONT_NORMAL, mjGRID_TOPRIGHT, vp, tr_title, tr_val, &con_);
-
-    // Bottom-right: control outputs + history stats ─────────────────────────
-    float motor_min = 999, motor_max = -999;
-    for (float v : history_.motor1) { motor_min = std::min(motor_min, v); motor_max = std::max(motor_max, v); }
-    
-    char br_title[256], br_val[256];
-    std::snprintf(br_title, sizeof(br_title),
-        "Thrust (N)\n"
-        "Tau X (N m)\n"
-        "Tau Y (N m)\n"
-        "Tau Z (N m)\n"
-        "\n"
-        "Motor 1 (N)\n"
-        "Motor 2 (N)\n"
-        "Motor 3 (N)\n"
-        "Motor 4 (N)\n"
-        "\n"
-        "Motors[min-max]");
-    std::snprintf(br_val, sizeof(br_val),
-        "%8.4f\n"
-        "%+8.4f\n" "%+8.4f\n" "%+8.4f\n"
-        "\n"
-        "%8.4f\n" "%8.4f\n" "%8.4f\n" "%8.4f\n"
-        "\n"
-        "[%.1f-%.1f]",
-        d.cmd.thrust,
-        d.cmd.torque.x(), d.cmd.torque.y(), d.cmd.torque.z(),
-        d.motors[0], d.motors[1], d.motors[2], d.motors[3],
-        motor_min < 999 ? motor_min : 0.0f, 
-        motor_max > -999 ? motor_max : 0.0f);
-    mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMRIGHT, vp, br_title, br_val, &con_);
-}
-
-void Visualizer::drawSimplePlot(int x, int y, int w, int h,
-                                const std::deque<float>& data,
-                                float min_val, float max_val,
-                                const char* label) {
-    // Simplified plot: just display range info in text
-    (void)x; (void)y; (void)w; (void)h; (void)data; 
-    (void)min_val; (void)max_val; (void)label; (void)&con_;
-}
-
-void Visualizer::render(const SimDisplay& d) {
-    glfwPollEvents();
-
-    int W, H;
-    glfwGetFramebufferSize(window_, &W, &H);
-    mjrRect vp{0, 0, W, H};
-
-    mjv_updateScene(env_.model(), env_.data(), &opt_, nullptr, &cam_, mjCAT_ALL, &scn_);
-    mjr_render(vp, &scn_, &con_);
-
-    // Update history
-    history_.push(d);
-    
-    // ── state overlays ────────────────────────────────────────────────────────
-    renderTextOverlays(d, W, H);
-
-    glfwSwapBuffers(window_);
-}
-
-// --- static GLFW callbacks ---
-
-void Visualizer::keyCb(GLFWwindow* w, int key, int, int action, int) {
-    if (action == GLFW_PRESS && key == GLFW_KEY_ESCAPE)
-        glfwSetWindowShouldClose(w, GLFW_TRUE);
-}
-
-void Visualizer::scrollCb(GLFWwindow*, double, double dy) {
-    if (instance_)
-        instance_->cam_.distance = std::max(0.5, instance_->cam_.distance - dy * 0.3);
-}
-
-void Visualizer::mouseBtnCb(GLFWwindow*, int button, int action, int) {
-    if (!instance_) return;
-    instance_->btn_left_  = (glfwGetMouseButton(instance_->window_, GLFW_MOUSE_BUTTON_LEFT)  == GLFW_PRESS);
-    instance_->btn_right_ = (glfwGetMouseButton(instance_->window_, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS);
-}
-
-void Visualizer::cursorCb(GLFWwindow*, double xpos, double ypos) {
-    if (!instance_) return;
-    double dx = xpos - instance_->last_x_;
-    double dy = ypos - instance_->last_y_;
-    instance_->last_x_ = xpos;
-    instance_->last_y_ = ypos;
-
-    if (instance_->btn_right_) {
-        instance_->cam_.azimuth   += dx * 0.5;
-        instance_->cam_.elevation -= dy * 0.5;
+        // Track the drone body automatically.
+        int body_id = mj_name2id(env_.model(), mjOBJ_BODY, "x2");
+        cam_.type       = mjCAMERA_TRACKING;
+        cam_.trackbodyid = body_id;
+        cam_.distance   = 2.0;
+        cam_.elevation  = -20.0;
+        cam_.azimuth    = 45.0;
     }
-    if (instance_->btn_left_) {
-        double s = 0.003 * instance_->cam_.distance;
-        instance_->cam_.lookat[0] -= dx * s;
-        instance_->cam_.lookat[1] += dy * s;
-    }
-}
 
+    Visualizer::~Visualizer()
+    {
+        mjv_freeScene(&scn_);
+        mjr_freeContext(&con_);
+        if (window_) glfwDestroyWindow(window_);
+        glfwTerminate();
+        instance_ = nullptr;
+    }
+
+    bool Visualizer::shouldClose() const
+    {
+        return glfwWindowShouldClose(window_);
+    }
+
+    void Visualizer::renderTextOverlays(const SimDisplay& d, int W, int H, int y_offset)
+    {
+        mjrRect vp{0, y_offset, W, H};
+        
+        constexpr double R2D = 180.0 / M_PI;
+        drone::Vec3 eul = drone::quatToEuler(d.ground_truth.quat);
+        drone::Vec3 err = d.target_pos - d.ground_truth.pos;
+
+        // Top-left: ground-truth pose ─────────────────────────────────────────────
+        char tl_title[512], tl_val[512];
+        
+        // Calculate min/max from history for ground truth position
+        float pos_x_min = 999, pos_x_max = -999;
+        float pos_z_min = 999, pos_z_max = -999;
+        for (float v : history_.pos_x) { pos_x_min = std::min(pos_x_min, v); pos_x_max = std::max(pos_x_max, v); }
+        for (float v : history_.pos_z) { pos_z_min = std::min(pos_z_min, v); pos_z_max = std::max(pos_z_max, v); }
+        
+        std::snprintf(tl_title, sizeof(tl_title),
+            "Time (s)\n"
+            "\n"
+            "Pos X (m)\n"
+            "Pos Y (m)\n"
+            "Pos Z (m)\n"
+            "\n"
+            "Vel X (m/s)\n"
+            "Vel Y (m/s)\n"
+            "Vel Z (m/s)\n"
+            "\n"
+            "Roll  (deg)\n"
+            "Pitch (deg)\n"
+            "Yaw   (deg)");
+        std::snprintf(tl_val, sizeof(tl_val),
+            "%.2f\n"
+            "\n"
+            "%+8.4f [%+.2f]\n" "%+8.4f\n" "%+8.4f [%+.2f]\n"
+            "\n"
+            "%+8.4f\n" "%+8.4f\n" "%+8.4f\n"
+            "\n"
+            "%+8.3f\n" "%+8.3f\n" "%+8.3f",
+            d.time,
+            d.ground_truth.pos.x(), pos_x_min, d.ground_truth.pos.y(), 
+            d.ground_truth.pos.z(), pos_z_min,
+            d.ground_truth.vel.x(), d.ground_truth.vel.y(), d.ground_truth.vel.z(),
+            eul.x()*R2D, eul.y()*R2D, eul.z()*R2D);
+        mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, vp, tl_title, tl_val, &con_);
+
+        // Bottom-left: target + tracking error ────────────────────────────────────
+        char bl_title[256], bl_val[256];
+        std::snprintf(bl_title, sizeof(bl_title),
+            "Target X (m)\n"
+            "Target Y (m)\n"
+            "Target Z (m)\n"
+            "\n"
+            "Err X (m)\n"
+            "Err Y (m)\n"
+            "Err Z (m)");
+        std::snprintf(bl_val, sizeof(bl_val),
+            "%+8.4f\n" "%+8.4f\n" "%+8.4f\n"
+            "\n"
+            "%+8.4f\n" "%+8.4f\n" "%+8.4f",
+            d.target_pos.x(), d.target_pos.y(), d.target_pos.z(),
+            err.x(), err.y(), err.z());
+        mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, vp, bl_title, bl_val, &con_);
+
+        // Top-right: EKF estimate ─────────────────────────────────────────────────
+        char tr_title[256], tr_val[256];
+        drone::Vec3 eul_est = drone::quatToEuler(d.estimated.quat);
+        std::snprintf(tr_title, sizeof(tr_title),
+            "EKF Pos X (m)\n"
+            "EKF Pos Y (m)\n"
+            "EKF Pos Z (m)\n"
+            "\n"
+            "EKF Vel X\n"
+            "EKF Vel Y\n"
+            "EKF Vel Z\n"
+            "\n"
+            "CF Roll  (deg)\n"
+            "CF Pitch (deg)\n"
+            "CF Yaw   (deg)");
+        std::snprintf(tr_val, sizeof(tr_val),
+            "%+8.4f\n" "%+8.4f\n" "%+8.4f\n"
+            "\n"
+            "%+8.4f\n" "%+8.4f\n" "%+8.4f\n"
+            "\n"
+            "%+8.3f\n" "%+8.3f\n" "%+8.3f",
+            d.estimated.pos.x(), d.estimated.pos.y(), d.estimated.pos.z(),
+            d.estimated.vel.x(), d.estimated.vel.y(), d.estimated.vel.z(),
+            eul_est.x()*R2D, eul_est.y()*R2D, eul_est.z()*R2D);
+        mjr_overlay(mjFONT_NORMAL, mjGRID_TOPRIGHT, vp, tr_title, tr_val, &con_);
+
+        // Bottom-right: control outputs + history stats ─────────────────────────
+        float motor_min = 999, motor_max = -999;
+        for (float v : history_.motor1) { motor_min = std::min(motor_min, v); motor_max = std::max(motor_max, v); }
+        
+        char br_title[256], br_val[256];
+        std::snprintf(br_title, sizeof(br_title),
+            "Thrust (N)\n"
+            "Tau X (N m)\n"
+            "Tau Y (N m)\n"
+            "Tau Z (N m)\n"
+            "\n"
+            "Motor 1 (N)\n"
+            "Motor 2 (N)\n"
+            "Motor 3 (N)\n"
+            "Motor 4 (N)\n"
+            "\n"
+            "Motors[min-max]");
+        std::snprintf(br_val, sizeof(br_val),
+            "%8.4f\n"
+            "%+8.4f\n" "%+8.4f\n" "%+8.4f\n"
+            "\n"
+            "%8.4f\n" "%8.4f\n" "%8.4f\n" "%8.4f\n"
+            "\n"
+            "[%.1f-%.1f]",
+            d.cmd.thrust,
+            d.cmd.torque.x(), d.cmd.torque.y(), d.cmd.torque.z(),
+            d.motors[0], d.motors[1], d.motors[2], d.motors[3],
+            motor_min < 999 ? motor_min : 0.0f, 
+            motor_max > -999 ? motor_max : 0.0f);
+        mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMRIGHT, vp, br_title, br_val, &con_);
+    }
+
+    void Visualizer::render(const SimDisplay& d)
+    {
+        glfwPollEvents();
+
+        int W, H;
+        glfwGetFramebufferSize(window_, &W, &H);
+        history_.push(d);
+
+        int figure_h = 0;
+        if (H > 80) {
+            figure_h = std::clamp(H / 4, 80, 280);
+            figure_h = std::min(figure_h, H - 80);
+        }
+        const int scene_h = std::max(0, H - figure_h);
+
+        if (scene_h > 0) {
+            mjrRect scene_vp{0, figure_h, W, scene_h};
+            mjv_updateScene(env_.model(), env_.data(), &opt_, nullptr, &cam_, mjCAT_ALL, &scn_);
+            mjr_render(scene_vp, &scn_, &con_);
+            renderTextOverlays(d, W, scene_h, figure_h);
+        }
+
+        updateFigure(d);
+        mjrRect figure_vp{0, 0, W, figure_h};
+        mjr_figure(figure_vp, &figure_, &con_);
+
+        glfwSwapBuffers(window_);
+    }
+
+    void Visualizer::updateFigure(const SimDisplay& d)
+    {
+        for (int i = 0; i < mjMAXLINE; ++i) {
+            figure_.linepnt[i] = 0;
+        }
+
+        const int n = std::min<int>(static_cast<int>(history_.time_vals.size()), mjMAXLINEPNT);
+        if (n <= 0) return;
+
+        const int start = static_cast<int>(history_.time_vals.size()) - n;
+        
+        auto time_it = history_.time_vals.begin();
+        auto px_it = history_.pos_x.begin();
+        auto py_it = history_.pos_y.begin();
+        auto pz_it = history_.pos_z.begin();
+        
+        std::advance(time_it, start);
+        std::advance(px_it, start);
+        std::advance(py_it, start);
+        std::advance(pz_it, start);
+
+        figure_.linepnt[0] = n;
+        figure_.linepnt[1] = n;
+        figure_.linepnt[2] = n;
+
+        for (int i = 0; i < n; ++i) {
+            figure_.linedata[0][2 * i]     = *time_it;
+            figure_.linedata[0][2 * i + 1] = *px_it;
+            figure_.linedata[1][2 * i]     = *time_it;
+            figure_.linedata[1][2 * i + 1] = *py_it;
+            figure_.linedata[2][2 * i]     = *time_it;
+            figure_.linedata[2][2 * i + 1] = *pz_it;
+            ++time_it; ++px_it; ++py_it; ++pz_it;
+        }
+
+        figure_.selection = static_cast<float>(d.time);
+    }
+    // --- static GLFW callbacks ---
+
+    void Visualizer::keyCb(GLFWwindow* w, int key, int, int action, int)
+    {
+        if (action == GLFW_PRESS && key == GLFW_KEY_ESCAPE)
+            glfwSetWindowShouldClose(w, GLFW_TRUE);
+    }
+
+    void Visualizer::scrollCb(GLFWwindow*, double, double dy)
+    {
+        if (instance_)
+        {
+            instance_->cam_.distance = std::max(0.5, instance_->cam_.distance - dy * 0.3);
+        }
+    }
+
+    void Visualizer::mouseBtnCb(GLFWwindow*, int button, int action, int)
+    {
+        if (!instance_) return;
+        instance_->btn_left_  = (glfwGetMouseButton(instance_->window_, GLFW_MOUSE_BUTTON_LEFT)  == GLFW_PRESS);
+        instance_->btn_right_ = (glfwGetMouseButton(instance_->window_, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS);
+    }
+
+    void Visualizer::cursorCb(GLFWwindow*, double xpos, double ypos)
+    {
+        if (!instance_) return;
+        double dx = xpos - instance_->last_x_;
+        double dy = ypos - instance_->last_y_;
+        instance_->last_x_ = xpos;
+        instance_->last_y_ = ypos;
+
+        if (instance_->btn_right_) {
+            instance_->cam_.azimuth   += dx * 0.5;
+            instance_->cam_.elevation -= dy * 0.5;
+        }
+        if (instance_->btn_left_) {
+            double s = 0.003 * instance_->cam_.distance;
+            instance_->cam_.lookat[0] -= dx * s;
+            instance_->cam_.lookat[1] += dy * s;
+        }
+    }
 } // namespace sim

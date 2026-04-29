@@ -3,7 +3,8 @@
 #include <cmath>
 #include <iostream>
 
-static void test_hover() {
+static void test_hover()
+{
     drone::PidController pid;
     drone::DroneState s;
     s.pos     = {0, 0, 1};
@@ -19,7 +20,8 @@ static void test_hover() {
     std::cout << "[pass] hover thrust = " << cmd.thrust << " N (expected ~" << mg << ")\n";
 }
 
-static void test_motor_mix_hover() {
+static void test_motor_mix_hover()
+{
     drone::PidParams p;
     drone::ControlInput cmd{p.mass * p.gravity, drone::Vec3::Zero()};
     drone::Vec4 m = drone::motorMix(cmd, p);
@@ -31,7 +33,8 @@ static void test_motor_mix_hover() {
     std::cout << "[pass] hover motor forces ≈ " << m[0] << " N each\n";
 }
 
-static void test_motor_clamp() {
+static void test_motor_clamp()
+{
     drone::PidParams p;
     drone::ControlInput cmd{60.0, drone::Vec3::Zero()}; // unrealistically large
     drone::Vec4 m = drone::motorMix(cmd, p);
@@ -40,7 +43,8 @@ static void test_motor_clamp() {
     std::cout << "[pass] motor clamp enforced\n";
 }
 
-static void test_position_error_response() {
+static void test_position_error_response()
+{
     drone::PidController pid;
     drone::DroneState s;
     s.pos     = {0, 0, 0.5};
@@ -53,7 +57,8 @@ static void test_position_error_response() {
     std::cout << "[pass] upward position error → increased thrust\n";
 }
 
-int main() {
+int main()
+{
     test_hover();
     test_motor_mix_hover();
     test_motor_clamp();

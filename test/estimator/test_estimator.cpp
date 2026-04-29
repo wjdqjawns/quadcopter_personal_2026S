@@ -4,14 +4,16 @@
 #include <cmath>
 #include <iostream>
 
-static void test_ekf_init() {
+static void test_ekf_init()
+{
     drone::EkfEstimator ekf;
     drone::DroneState s = ekf.getState();
     assert(s.pos.norm() < 1e-9 && "EKF initial pos should be zero");
     std::cout << "[pass] EKF initialises to zero\n";
 }
 
-static void test_ekf_predict_hover() {
+static void test_ekf_predict_hover()
+{
     drone::EkfEstimator ekf;
     // At hover, accel sensor reads (0,0,9.81) specific force; with R=I
     // world-frame accel = (0,0,9.81) − 9.81 = 0, so pos/vel should not drift.
@@ -22,7 +24,8 @@ static void test_ekf_predict_hover() {
     std::cout << "[pass] EKF hover drift < 1 mm over 1 s\n";
 }
 
-static void test_ekf_fuse_position() {
+static void test_ekf_fuse_position()
+{
     drone::EkfEstimator ekf;
     // Artificially shift the estimate
     drone::DroneState initial;
@@ -38,14 +41,16 @@ static void test_ekf_fuse_position() {
     std::cout << "[pass] EKF position fusion pulls estimate towards measurement\n";
 }
 
-static void test_cf_init() {
+static void test_cf_init()
+{
     drone::CfEstimator cf;
     drone::Vec3 euler = drone::quatToEuler(cf.getState().quat);
     assert(euler.norm() < 1e-9 && "CF initial attitude should be zero");
     std::cout << "[pass] CF initialises to zero attitude\n";
 }
 
-static void test_cf_accel_correction() {
+static void test_cf_accel_correction()
+{
     drone::CfEstimator cf;
     // Pure gravity pointing up in body frame → should converge to zero attitude.
     drone::IMUData imu{{0, 0, 9.81}, {0, 0, 0}, 0.01};
@@ -56,7 +61,8 @@ static void test_cf_accel_correction() {
     std::cout << "[pass] CF holds level attitude under gravity\n";
 }
 
-int main() {
+int main()
+{
     test_ekf_init();
     test_ekf_predict_hover();
     test_ekf_fuse_position();

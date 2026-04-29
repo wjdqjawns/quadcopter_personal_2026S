@@ -11,9 +11,9 @@ namespace sim
         static bool plugins_loaded = false;
         if (!plugins_loaded)
         {
-    #ifdef MUJOCO_PLUGIN_DIR
+#ifdef MUJOCO_PLUGIN_DIR
             mj_loadAllPluginLibraries(MUJOCO_PLUGIN_DIR, nullptr);
-    #endif
+#endif
             plugins_loaded = true;
         }
 
