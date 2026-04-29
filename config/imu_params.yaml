@@ -1,0 +1,5 @@
+imu:
+  accel_noise: 0.003    # m/s²/√Hz  white noise density
+  gyro_noise:  0.0002   # rad/s/√Hz white noise density
+  accel_bias:  0.01     # m/s²      constant bias magnitude
+  gyro_bias:   0.001    # rad/s     constant bias magnitude

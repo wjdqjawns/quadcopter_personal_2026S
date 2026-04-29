@@ -1,1 +1,5 @@
-yam
+simulation:
+  model_path: asset/skydio_x2/scene.xml
+  duration:   60.0          # seconds
+  visualize:  true
+  log_path:   data/logs/sim_log.csv

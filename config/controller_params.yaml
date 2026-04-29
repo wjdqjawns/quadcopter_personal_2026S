@@ -1,0 +1,21 @@
+pid:
+  mass:    1.325   # kg  (4 × 0.25 rotors + 0.325 body)
+  gravity: 9.81
+
+  # Skydio X2 motor geometry (from x2.xml site positions)
+  arm_y:   0.18    # m  lateral
+  arm_x:   0.14    # m  longitudinal
+  kq:      0.0201  # N·m/N yaw torque coefficient
+
+  pos:
+    kp: [6.0, 6.0, 8.0]
+    kd: [4.0, 4.0, 5.0]
+    ki: [0.2, 0.2, 0.4]
+
+  att:
+    kp: [8.0, 8.0, 4.0]
+    kd: [2.0, 2.0, 1.0]
+
+  max_tilt:  0.5   # rad
+  max_motor: 13.0  # N  (ctrlrange upper from x2.xml)
+  min_motor: 0.1   # N

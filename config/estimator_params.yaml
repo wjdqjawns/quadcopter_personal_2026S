@@ -1,0 +1,7 @@
+ekf:
+  proc_noise_pos: 0.01   # m²/s³
+  proc_noise_vel: 0.1    # m²/s³
+  meas_noise_pos: 0.05   # m²
+
+complementary_filter:
+  alpha: 0.98             # gyro weight vs accelerometer correction
