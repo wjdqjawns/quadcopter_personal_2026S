@@ -1,5 +1,6 @@
 simulation:
-  model_path: asset/skydio_x2/scene.xml
-  duration:   60.0          # seconds
-  visualize:  true
-  log_path:   data/logs/sim_log.csv
+  model_path:  asset/skydio_x2/scene.xml
+  duration:    60.0          # seconds
+  visualize:   true
+  log_path:    data/logs/sim_log.csv
+  controller:  mpc           # pid | mpc

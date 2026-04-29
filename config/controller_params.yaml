@@ -19,3 +19,28 @@ pid:
   max_tilt:  0.5   # rad
   max_motor: 13.0  # N  (ctrlrange upper from x2.xml)
   min_motor: 0.1   # N
+
+mpc:
+  # Physical / motor geometry — same as PID
+  mass:    1.325
+  gravity: 9.81
+  arm_y:   0.18
+  arm_x:   0.14
+  kq:      0.0201
+  max_tilt:  0.5
+  max_motor: 13.0
+  min_motor: 0.1
+
+  # MPC horizon (number of prediction steps at dt=0.01 s → 0.1 s lookahead)
+  horizon: 10
+
+  # State cost diagonal [px, py, pz, vx, vy, vz]
+  Q: [10.0, 10.0, 20.0, 4.0, 4.0, 6.0]
+
+  # Input cost diagonal [ax, ay, az]
+  R: [0.1, 0.1, 0.1]
+
+  # Attitude inner-loop PD gains (same role as PID inner loop)
+  att:
+    kp: [8.0, 8.0, 4.0]
+    kd: [2.0, 2.0, 1.0]
