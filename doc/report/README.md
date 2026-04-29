@@ -5,7 +5,7 @@ This template is designed to:
 
 - Keep the project root clean (only `main.tex`, `main.pdf`, configs, and README)
 - Separate build artifacts into the `build/` directory
-- Support modular document structure (`sections/`, `packages/`, `vendor/`)
+- Support modular document structure (`sections/`, `packages/`, `asset/`)
 - Work consistently across machines and team members
 
 ## Features
@@ -13,7 +13,7 @@ This template is designed to:
 - 📁 Clean project structure
 - 🧱 Modular sections (`sections/`)
 - 🎨 Custom styles and macros (`packages/`)
-- 📦 External templates isolated (`vendor/`)
+- 📦 External templates isolated (`asset/`)
 - 🗂 Build artifacts separated (`build/`)
 - 🧪 Reproducible builds with `latexmk`
 - 🧑‍💻 VSCode integration (LaTeX Workshop)
@@ -36,7 +36,7 @@ root/
 │ └─ reference.bib
 ├─ packages/
 │ └─ general.sty
-└─ vendor/
+└─ asset/
 ```
 
 ## Requirements
@@ -104,7 +104,7 @@ and include them in `main.tex`.
 Store external templates (IEEE, ACM, etc.) in:
 
 ```
-vendor/
+asset/
 ```
 
 Do not modify them directly.  

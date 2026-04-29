@@ -1,5 +1,5 @@
 \makeatletter
-\def\input@path{{packages/}{vendor/}{sections/}{bibliography/}}
+\def\input@path{{packages/}{sections/}{bibliography/}}
 \makeatother
 
 \documentclass[a4paper,11pt]{article}
@@ -11,21 +11,20 @@
 \date{\today}
 
 \begin{document}
+    \maketitle
 
-\maketitle
+    \begin{abstract}
+    This is a sample abstract.
+    \end{abstract}
 
-\begin{abstract}
-This is a sample abstract.
-\end{abstract}
+    \section{Introduction}
+    This is an example citation \cite{smith2023}.
 
-\section{Introduction}
-This is an example citation \cite{smith2023}.
+    \section{Method}
 
-\section{Method}
+    \section{Conclusion}
+    \input{chapter_02}
 
-\section{Conclusion}
-
-\bibliographystyle{plain}
-\bibliography{reference}
-
+    \bibliographystyle{plain}
+    \bibliography{reference}
 \end{document}

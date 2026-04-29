@@ -1,6 +1,6 @@
 \ProvidesPackage{general}
 
-% ---------- Encoding & language ----------
+% ---------- Encoding & font ----------
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
 
@@ -11,6 +11,12 @@
 % ---------- Graphics ----------
 \usepackage{graphicx}
 \usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\graphicspath{{figures/}{./figures/}}
+
+% ---------- Tables ----------
+\usepackage{booktabs}
 
 % ---------- References ----------
 \usepackage{cite}
@@ -22,6 +28,9 @@
   citecolor=black,
   urlcolor=black
 ]{hyperref}
+
+% ---------- Optional smarter refs ----------
+% \usepackage{cleveref}
 
 % ---------- Useful macros ----------
 \newcommand{\figref}[1]{Fig.~\ref{#1}}
